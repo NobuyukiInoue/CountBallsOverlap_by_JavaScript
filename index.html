@@ -1,0 +1,670 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>CountBallOverlaps.</title>
+    <link href="./js/c3.css" rel="stylesheet">
+    <script src="https://d3js.org/d3.v5.js"></script>
+    <script src="./js/c3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+</head>
+<body>
+    <h1></h1>
+    <div id="stage">Count the number of times the balls overlap like a virus infection.</div>
+    <div id="app">
+    <table border = 0>
+        <div><tr><td>Balls:</td><td><input v-model="max_balls" type="number"/></td></tr></div>
+        <div><tr><td>Radius:</td><td><input v-model="radius" type="number"/></td></tr></div>
+        <div><tr><td>screen_width:</td><td><input v-model="screen_width" type="number"/></td></tr></div>
+        <div><tr><td>screen_height:</td><td><input v-model="screen_height" type="number"/></td></tr></div>
+        <div><tr><td>sleep_sec(wait):</td><td><input v-model="sleep_sec" type="number"/>
+            <button type="button" v-on:click="click_sleep_sec_muins">- 0.1</button>
+            <button type="button" v-on:click="click_sleep_sec_plus">+ 0.1</button>
+        </td></tr></div>
+        <div><tr><td>bar_pos_x:</td><td><input v-model="bar_pos_x" type="number"/></td></tr></div>
+        <div><tr><td>bar_height:</td><td><input v-model="bar_height" type="number"/></td></tr></div>
+        <div><tr><td>bar_width:</td><td><input v-model="bar_width" type="number"/></td></tr></div>
+        <div><tr><td>TURNS_REQUIRED_FOR_HEAL:</td><td><input v-model="turns_required_for_heal" type="number"/></td></tr></div>
+        <div><tr><td></td><td><button type="button"  v-on:click='clickCalc' class="btn">開始</button></td></tr></div>
+    </table>
+    </div>
+    <br>
+    <div>
+        <canvas width="640" height="780" id="screen" style="background-color:white;">
+          You need a browser that supports the canvas tag.
+        </canvas>
+    </div>
+</body>
+<script>
+class Params {
+    constructor(start_wait, screen_width, screen_height, max_balls, radius, movement, sleep_sec, chart_height, enable_bar, bar, turn_for_heals, ratio_of_balls_stoppted) {
+        // default params.
+        this.START_WAIT = start_wait;
+        this.SCREEN_WIDTH = screen_width;
+        this.SCREEN_HEIGHT = screen_height;
+        this.MAX_BALLS = max_balls;
+        this.RADIUS = radius;
+        this.MOVEMENT = movement;
+        this.SLEEP_SEC = sleep_sec;
+        this.CHART_HEIGHT = chart_height;
+        this.ENABLE_BAR = enable_bar;
+        this.BAR = bar;
+        this.TURNS_REQUIRED_FOR_HEAL = turn_for_heals;  // -1 ... Does not heal.
+        this.RATIO_OF_BALLS_STOPPED = ratio_of_balls_stoppted;
+    }
+
+    memberToString() {
+        var res = "";
+        res += "  SCREEN_WIDTH = " + this.SCREEN_WIDTH + ",\n";
+        res += "  SCREEN_HEIGHT = " + this.SCREEN_HEIGHT + ",\n";
+        res += "  MAX_BALLS = " + this.MAX_BALLS + ",\n";
+        res += "  RADIUS = " + this.RADIUS + ",\n";
+        res += "  MOVEMENT = (\n" + this.MOVEMENT.memberToString() + "  ),\n";
+        res += "  SLEEP_SEC = " + this.SLEEP_SEC + ",\n";
+        res += "  CHART_HEIGHT = " + this.CHART_HEIGHT + ",\n";
+        res += "  TURNS_REQUIRED_FOR_HEAL = " + this.TURNS_REQUIRED_FOR_HEAL + ",\n";
+        res += "  RATIO_OF_BALLS_STOPPED = " + this.RATIO_OF_BALLS_STOPPED + ",\n";
+        res += "  ENABLE_BAR = " + this.ENABLE_BAR + ",\n";
+        
+        return res;
+    }
+}
+
+class Movement {
+    constructor(min, max) {
+        this.min = min;
+        this.max = max;
+    }
+
+    memberToString() {
+        var res = "";
+        res += "    min = " + this.min + ",\n";
+        res += "    max = " + this.max + ",\n";
+        
+        return res;
+    }
+}
+
+class Bar {
+    constructor(x, height, width) {
+        this.POS_X = x;
+        this.HEIGHT = height;
+        this.WIDTH = width;
+    }
+}
+
+class Postion {
+    constructor(x, y) {
+       this.x = x;
+       this.y = y;
+    }
+}
+
+class Ball {
+    constructor(pos_xy, add_xy, max_xy, radius, color) {
+        this.forecolor = color;
+        this.radius = radius;
+        this.pos = pos_xy;
+        this.add = add_xy; 
+        this.max = max_xy;
+        this.contact = false;
+        this.turn_heal = -1;
+        this.turn_infection = -1;
+        this.healed = false;
+    }
+
+    get_position() {
+        return this.pos;
+    }
+
+    set_nextposition(PARAMS) {
+        var next_x = this.pos.x + this.add.x;
+        var next_y = this.pos.y + this.add.y;
+
+        if (next_x <= 0) {
+            this.add.x = Math.abs(this.add.x);
+            this.pos.x += this.add.x - (this.pos.x -  0);
+
+        } else if (next_x >= this.max.x) {
+            this.add.x = -Math.abs(this.add.x);
+            this.pos.x += this.add.x + (this.max.x - this.pos.x);
+
+        } else if (PARAMS.ENABLE_BAR) {
+
+            if (PARAMS.BAR.POS_X <= this.pos.x && this.pos.x <= PARAMS.BAR.POS_X + PARAMS.BAR.WIDTH
+            && (this.pos.y <= PARAMS.BAR.HEIGHT || PARAMS.SCREEN_HEIGHT - PARAMS.BAR.HEIGHT <= this.pos.y)) {
+                // Determine if ball in bar.
+                this.pos.x += this.add.x;
+
+            } else if (PARAMS.BAR.POS_X <= next_x && next_x <= PARAMS.BAR.POS_X + PARAMS.BAR.WIDTH
+            && (next_y <= PARAMS.BAR.HEIGHT || PARAMS.SCREEN_HEIGHT - PARAMS.BAR.HEIGHT <= next_y)) {
+                // Determine if ball hits bar.
+                if (this.pos.x <= PARAMS.BAR.POS_X) {
+                    this.add.x = -Math.abs(this.add.x)
+                } else if (PARAMS.BAR.POS_X + PARAMS.BAR.WIDTH <= this.pos.x) {
+                    this.add.x = Math.abs(this.add.x);
+                } else {
+                    this.add.x *= -1;
+                }
+            }
+            this.pos.x += this.add.x;
+
+        } else {
+            this.pos.x += this.add.x;
+        }
+
+        if (this.pos.y - this.radius <= 0) {
+            this.add.y = Math.abs(this.add.y);
+        } else if (this.pos.y + this.radius >= this.max.y) {
+            this.add.y = -Math.abs(this.add.y);
+        }
+        this.pos.y += this.add.y;
+    }
+
+    set_contact(turn_infection, turn_heal, mycolor) {
+        this.forecolor = mycolor;
+        this.contact = true;
+        this.turn_infection = turn_infection;
+        this.turn_heal = this.turn_infection + turn_heal;
+    }
+
+    set_heal(mycolor) {
+        this.healed = true;
+        this.forecolor = mycolor;
+    }
+
+    check_contact(target_pos) {
+        if (Math.abs(target_pos.x - this.pos.x) <= this.radius && Math.abs(target_pos.y - this.pos.y) <= this.radius) {
+            return true;
+        }
+        return false;
+    }
+
+    memberToString() {
+        var resultStr = "";
+        resultStr += "  color = " + this.forecolor + ",\n";
+        resultStr += "  radius = " + this.radius + ",\n";
+        resultStr += "  pos = (" + this.pos.x + ", " + this.pos.y + "),\n";
+        resultStr += "  add = (" + this.add.x + ", " + this.add.y + "),\n";; 
+        resultStr += "  max = (" + this.max.x + ", " + this.max.y + "),\n";
+        resultStr += "  contact = " + this.contact + ",\n";
+        resultStr += "  turn_heal = " + this.turn_heal + ",\n";
+        resultStr += "  turn_infection = " + this.turn_infection + ",\n";
+        resultStr += "  healed = " + this.healed + ",\n";
+        
+        return resultStr;
+    }
+}
+
+class Results {
+    constructor(turn, contacted_count, infected_count, healed_count, non_infected) {
+        this.turn = turn;
+        this.contacted = contacted_count;
+        this.infected = infected_count;
+        this.healed = healed_count;
+        this.non_infected = non_infected;
+    }
+}
+
+function init_ball_position(PARAMS) {
+    var x, y;
+    
+    if (PARAMS.ENABLE_BAR) {
+        while (true) {
+            x = Math.floor(Math.random() * (PARAMS.SCREEN_WIDTH - PARAMS.RADIUS - PARAMS.RADIUS)) + PARAMS.RADIUS;
+            if (x + PARAMS.RADIUS < PARAMS.BAR.POS_X || PARAMS.BAR.POS_X + PARAMS.BAR.WIDTH < x - PARAMS.RADIUS)
+                break;
+        }
+    } else {
+        x = Math.floor(Math.random() * (PARAMS.SCREEN_WIDTH - PARAMS.RADIUS - PARAMS.RADIUS)) + PARAMS.RADIUS;
+    }
+    y = Math.floor(Math.random() *(PARAMS.SCREEN_HEIGHT - PARAMS.RADIUS - PARAMS.RADIUS)) + PARAMS.RADIUS;
+
+    return new Postion(x, y)
+}
+
+function init_screen(context, SCREEN_WIDTH, SCREEN_HEIGHT, CHART_HEIGHT) {
+    context.lineWidth = 1;
+
+    // clear balls screen.
+    context.fillStyle = "white";
+    context.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    // draw horizontal and vertical line for balls.
+    context.strokeStyle = "black";
+    context.strokeRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    // clear chart screen.
+    context.fillStyle = "white";
+    context.fillRect(0, SCREEN_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT + CHART_HEIGHT);
+
+    // draw horizontal and vertical line for chart.
+    context.strokeStyle = "black";
+    context.strokeRect(0, SCREEN_HEIGHT, SCREEN_WIDTH,  SCREEN_HEIGHT + CHART_HEIGHT);
+
+    // draw lower line.
+    context.beginPath();
+    context.moveTo(0, SCREEN_HEIGHT + CHART_HEIGHT);
+    context.lineTo(SCREEN_WIDTH, SCREEN_HEIGHT + CHART_HEIGHT);
+    context.stroke();
+}
+
+function calc(balls_max, radius, screen_width, screen_height, sleep_sec, chart_height, enable_bar, bar, turns_required_for_heal, ratio_of_balls_stoppted) {
+    var PARAMS = new Params(
+        0,                 // START_WAIT
+        screen_width,
+        screen_height,
+        max_balls,
+        radius,
+        new Movement(-3, 3),
+        sleep_sec,
+        chart_height,
+        enable_bar,
+        BAR = bar,
+        turns_required_for_heal,
+        ratio_of_balls_stoppted
+    );
+
+    if (PARAMS.CHART_HEIGHT == 0) 
+        PARAMS.CHART_HEIGHT = PARAMS.MAX_BALLS;
+
+    console.log("PARAMS = (\n%s)", PARAMS.memberToString());
+
+    if (PARAMS.ENABLE_BAR) {
+        console.log("BAR.POS_X = %d", PARAMS.BAR.POS_X);
+        console.log("BAR.HEIGHT = %d", PARAMS.BAR.HEIGHT);
+        console.log("BAR.WIDTH = %d", PARAMS.BAR.WIDTH);
+    }
+
+    // initialize balls.
+    var balls = new Array(PARAMS.MAX_BALLS);
+
+    if (PARAMS.RATIO_OF_BALLS_STOPPED == 0.0) {
+        // When RATIO_OF_BALLS_STOPPED is not specified.
+        for (var i = 0; i < PARAMS.MAX_BALLS; i++) {
+            var pos = init_ball_position(PARAMS);
+            var add = new Postion(0, 0);
+            while (add.x == 0)
+                add.x = Math.floor(Math.random() * (PARAMS.MOVEMENT.max - PARAMS.MOVEMENT.min)) + PARAMS.MOVEMENT.min;
+            while (add.y == 0)
+                add.y = Math.floor(Math.random() * (PARAMS.MOVEMENT.max - PARAMS.MOVEMENT.min)) + PARAMS.MOVEMENT.min;
+            balls[i] = new Ball(pos, add, new Postion(PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT), PARAMS.RADIUS, "blue");
+        }
+    } else {
+        // When RATIO_OF_BALLS_STOPPED is specified.
+        var target_max = Math.ceil(PARAMS.MAX_BALLS * (1.0 - PARAMS.RATIO_OF_BALLS_STOPPED))
+        for (var i = 0; i < target_max; i++) {
+            var pos = init_ball_position(PARAMS);
+            var add = new Position(0, 0);
+            while (add.x == 0)
+                add.x = Math.floor(Math.random() * (PARAMS.MOVEMENT.max - PARAMS.MOVEMENT.min)) + PARAMS.MOVEMENT.min;
+            while (add.y == 0)
+                add.y = Math.floor(Math.random() * (PARAMS.MOVEMENT.max - PARAMS.MOVEMENT.min)) + PARAMS.MOVEMENT.min;
+            balls[i] = new Ball(pos, add, new Postion(PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT), PARAMS.RADIUS, "blue");
+        }
+
+        var add = new Postion(0, 0);
+        for (var i = target_max; i < PARAMS.MAX_BALLS; i++) {
+            var pos = init_ball_position(PARAMS);
+            balls[i] = new ball(pos, add, new Postion(PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT), PARAMS.RADIUS, "blue");
+        }
+    }
+
+    // Make the leftmost ball red.
+    var min_x = Number.MAX_VALUE;
+    var target_i = 0;
+    for (var i = 0; i < balls.length; i++) {
+
+    //  console.log("balls[%d] = (\n%s)",  i, balls[i].memberToString());
+
+        if (balls[i].pos.x < min_x) {
+            min_x = balls[i].pos.x;
+            target_i = i;
+        }
+    }
+
+    balls[target_i].set_contact(0, PARAMS.TURNS_REQUIRED_FOR_HEAL, "red");
+    console.log("target ... balls[%d] = (\n%s)\n", target_i, balls[target_i].memberToString());
+
+//  print_all_balls(balls);
+
+    var contacted_count = 1;
+    var results = new Array();
+    var index = 0;
+    var turn = 0;
+    var pre_result = new Results(turn, contacted_count, contacted_count, 0, PARAMS.MAX_BALLS - contacted_count);
+    var RATIO_INFECTED_INCREMENTAL = 3;
+    var timer;
+
+    var canvas = document.getElementById("screen");
+
+    if (canvas.getContext == null)
+       return;
+
+    canvas.width = PARAMS.SCREEN_WIDTH;
+    canvas.height = PARAMS.SCREEN_HEIGHT + PARAMS.CHART_HEIGHT;
+
+    var context = canvas.getContext('2d');
+
+    function render() {
+        context.save();
+
+        init_screen(context, PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT, PARAMS.CHART_HEIGHT);
+
+        // heal check.
+        if (turn > 0) {
+            for (var i = 0; i < PARAMS.MAX_BALLS; i++) {
+                if (balls[i].contact && balls[i].turn_heal == turn) {
+                    balls[i].set_heal("green");
+                }
+            }
+        }
+
+        // contact check.
+        var infected_count = 0;
+        var healed_count = 0;
+        for (var i = 0; i < PARAMS.MAX_BALLS; i++) {
+
+            if (balls[i].contact && balls[i].healed == false)
+                infected_count++;
+
+            if (balls[i].healed)
+                healed_count++;
+                
+            for (var j = i + 1; j < PARAMS.MAX_BALLS; j++) {
+                var conditions_i = balls[i].contact && balls[i].healed == false;
+                var conditions_j = balls[j].contact && balls[j].healed == false;
+                if (conditions_i && conditions_j)
+                    continue;
+                if (balls[i].healed || balls[j].healed)
+                    continue;
+                if (conditions_i) {
+                    if (balls[i].check_contact(balls[j].get_position())) {
+                        balls[j].set_contact(turn, PARAMS.TURNS_REQUIRED_FOR_HEAL, "red");
+                        contacted_count++;
+                    }
+                } else if (conditions_j) {
+                    if (balls[j].check_contact(balls[i].get_position())) {
+                        balls[i].set_contact(turn, PARAMS.TURNS_REQUIRED_FOR_HEAL, "red");
+                        contacted_count++;
+                    }
+                }
+            }
+        }
+
+        // draw bar.
+        if (PARAMS.ENABLE_BAR) {
+            // console.log("Check Point ... draw bar.");
+
+            context.stokeStyle = "black";
+            context.lineWidth = PARAMS.BAR.WIDTH;
+
+            // draw uppwer bar.
+            context.beginPath();
+            context.moveTo(PARAMS.BAR.POS_X, 0);
+            context.lineTo(PARAMS.BAR.POS_X, PARAMS.BAR.HEIGHT);
+            context.stroke();
+
+            // draw lower bar.
+            context.beginPath();
+            context.moveTo(PARAMS.BAR.POS_X, PARAMS.SCREEN_HEIGHT);
+            context.lineTo(PARAMS.BAR.POS_X, PARAMS.SCREEN_HEIGHT - PARAMS.BAR.HEIGHT);
+            context.stroke();
+        }
+
+        // draw balls.
+        for (var i = 0;  i < PARAMS.MAX_BALLS; i++) {
+            context.strokeStyle = balls[i].forecolor;
+            context.fillStyle = balls[i].forecolor;
+            context.beginPath();
+            context.arc(balls[i].pos.x, balls[i].pos.y, balls[i].radius, 0, 360);
+            context.fill();
+        //  console.log("draw arc balls[%d] ... (%d, %d)", i, balls[i].pos.x, balls[i].pos.y);
+        }
+
+        // print contact count information to console.
+        if (contacted_count != pre_result.contacted_count
+         || infected_count != pre_result.infected_count
+         || healed_count != pre_result.healed_count) {
+
+            results.push(new Results(turn, contacted_count, infected_count, healed_count, PARAMS.MAX_BALLS - contacted_count));
+            console.log("%d:%d,%d,%d,%d", turn, contacted_count, infected_count, healed_count, PARAMS.MAX_BALLS - contacted_count);
+
+            pre_result = new Results(turn, turn, contacted_count, infected_count, healed_count, PARAMS.MAX_BALLS - contacted_count);
+        }
+
+        // draw contact count chart.
+        if (turn > 0 && results.length > 0) {
+            for (var i = 0; i < 5; i++) {
+                if (PARAMS.SCREEN_WIDTH * i >= turn) {
+                    RATIO_DRAW_WIDTH = i;
+                    break;
+                }
+            }
+
+            RATIO_DRAW_HEIGHT = 1;
+            pre_x = pre_infected = pre_healed = 0;
+            context.lineWidth = 1;
+
+            for (var i = 0; i < results.length; i++) {
+                var x = Math.ceil(results[i].turn/RATIO_DRAW_WIDTH);
+                var y_infected = PARAMS.SCREEN_HEIGHT + PARAMS.CHART_HEIGHT + PARAMS.RADIUS;
+                var y_healed = PARAMS.SCREEN_HEIGHT + 1;
+
+                // draw infected line to lower.
+                context.strokeStyle = "red";
+
+                context.beginPath();
+                context.moveTo(x, y_infected);
+                context.lineTo(x, y_infected - results[i].intected*RATIO_DRAW_HEIGHT);
+                context.stroke();
+
+                incremental_x = x - pre_x;
+
+                if (incremental_x > 0) {
+                    for (var x1 = pre_x; x1 < x; x1++) {
+                        // draw previous infected line.
+                        context.beginPath();
+                        context.moveTo(x1, y_infected);
+                        context.lineTo(x1, y_infected - pre_infected*RATIO_DRAW_HEIGHT);
+                        context.stroke();
+                    }
+                }
+                pre_infected = results[i].infected;
+
+                // draw healed line to upper.
+                context.strokeStyle = "green";
+
+                if (results[i].healed > 0) {
+                    context.beginPath();
+                    context.moveTo(x, y_healed)
+                    context.lineTo(x, y_healed + results[i].healed*RATIO_DRAW_HEIGHT);
+                    context.stroke();
+
+                    incremental_x = x - pre_x;
+                    if (incremental_x > 0) {
+                        for (var x2 = pre_x; x2 < x; x2++) {
+                            // draw previous infected line.
+                            context.beginPath();
+                            context.moveTo(x2, y_healed);
+                            context.lineTo(x2, y_healed + pre_healed*RATIO_DRAW_HEIGHT);
+                            context.stroke();
+                        }
+                    }
+                    pre_healed = results[i].healed;
+                }
+                pre_x = x;
+            }
+        }
+
+        // display contact count information to screen.
+        context.font = '12pt Arial';
+        context.fillStyle = "black"
+        context.fillText("turn = " + turn, 0, PARAMS.SCREEN_HEIGHT + 20);
+        context.fillText("TURNS_REQUIRED_FOR_HEAL = " + PARAMS.TURNS_REQUIRED_FOR_HEAL, 0, PARAMS.SCREEN_HEIGHT + 40);
+        context.fillText("contacted = " + contacted_count + "/" + PARAMS.MAX_BALLS, 0, PARAMS.SCREEN_HEIGHT + 60);
+        context.fillText("healed = " + healed_count + "/" + PARAMS.MAX_BALLS + "(GREEN)", 0, PARAMS.SCREEN_HEIGHT + 80);
+        context.fillText("infected = " + infected_count + "/" + PARAMS.MAX_BALLS + "(RED)", 0, PARAMS.SCREEN_HEIGHT + 100);
+
+        // All balls are infected.
+        if (contacted_count == PARAMS.MAX_BALLS) {
+            context.fillText("infected incremental(BLUE)(ratio ... x" + RATIO_INFECTED_INCREMENTAL + ")", 0, PARAMS.SCREEN_HEIGHT + 120);
+            context.fillText("end ... All balls are infected.", 0, PARAMS.SCREEN_HEIGHT + 160);
+        }
+
+        // The infected balls are gone.
+        if (infected_count == 0) {
+            context.fillText("infected incremental(BLUE)(ratio ... x" + RATIO_INFECTED_INCREMENTAL + ")", 0, PARAMS.SCREEN_HEIGHT + 120);
+            context.fillText("end ... The infected balls are gone.", 0, PARAMS.SCREEN_HEIGHT + 160);
+        }
+
+        // get next position.
+        for (var i = 0; i < PARAMS.MAX_BALLS; i++) {
+        //  console.log("balls[%d].pos = (%d, %d)", i, balls[i].pos.x, balls[i].pos.y);
+            balls[i].set_nextposition(PARAMS);
+        }
+
+        //###################################################
+        // Break out of the loop.
+        //###################################################
+        if (contacted_count >= PARAMS.MAX_BALLS) {
+
+            // All balls are infected.
+            console.log("End ... All balls are infected. (turn = %d)", turn)
+            calc_end(context, PARAMS, results, RATIO_DRAW_WIDTH, RATIO_INFECTED_INCREMENTAL);
+
+            // stop timer call render()
+            clearInterval(timer);
+
+        } else if (infected_count == 0) {
+
+            // The infected ball is gone.
+            console.log("End ... The infected ball is gone.  (turn = %d)", turn);
+            calc_end(context, PARAMS, results, RATIO_DRAW_WIDTH, RATIO_INFECTED_INCREMENTAL);
+
+            // stop call render()
+            clearInterval(timer);
+
+        } else {
+
+            turn++;
+        }
+    }
+
+    // start timer call render()
+    timer = setInterval(render, PARAMS.SLEEP_SEC*1000);
+}
+
+function print_all_balls(balls) {
+    for (var i = 0; i < balls.length; i++) {
+        console.log("balls[%d] = (%d, %d)", i, balls[i].pos.x, balls[i].pos.y);
+    }
+}
+
+function calc_end(context, PARAMS, results, RATIO_DRAW_WIDTH, RATIO_INFECTED_INCREMENTAL) {
+    // draw incremental line.
+    pre_x = pre_data = 0;
+    context.strokeStyle = "blue";
+
+    for (var i = 0; i < results.length; i++) {
+        x = Math.ceil(results[i].turn/RATIO_DRAW_WIDTH);
+        y = PARAMS.SCREEN_HEIGHT + PARAMS.CHART_HEIGHT + PARAMS.RADIUS
+        incremental_data = results[i].contacted - pre_data
+        incremental_x = x - pre_x
+        if (incremental_x > 0) {
+            // draw incremental line.
+            context.beginPath();
+            context.moveTo(x, y);
+            context.lineTo(x, y - Math.ceil((incremental_data/incremental_x)*RATIO_INFECTED_INCREMENTAL));
+            context.stroke();
+        }
+        pre_x = x;
+        pre_data = results[i].contacted;
+    }
+    
+    context.restore();
+    
+//  print_all_balls(balls);
+
+/*
+    for (var i = 0; i < results.length; i++) {
+        console.log("%d:%d,%d,%d,%d", results[i].turn, results[i].contacted_count, results[i].infected_count, results[i].healed_count, results[i].non_infected);
+    }
+*/
+    console.log("calc() end.");
+}
+</script>
+
+<script>
+var max_balls = 300;
+var radius = 3;
+var screen_width = 640;
+var screen_height = 480;
+var sleep_sec = 0.0;
+var bar_pos_x = 200;
+var bar_height = 200;
+var bar_width = 6;
+var turns_required_for_heal = 100;
+var ratio_of_balls_stoppted = 0.0;
+
+var vm = new Vue({
+    el: '#app',
+    data: {
+        max_balls: max_balls,
+        radius: radius,
+        screen_width: screen_width,
+        screen_height: screen_height,
+        sleep_sec: sleep_sec,
+        bar_pos_x: bar_pos_x,
+        bar_height: bar_height,
+        bar_width: bar_width,
+        turns_required_for_heal: turns_required_for_heal,
+        ratio_of_balls_stoppted: ratio_of_balls_stoppted,
+   },
+
+    mounted: function() {
+    //  this.clickCalc();
+        var canvas = document.getElementById("screen");
+
+        if (canvas.getContext == null)
+           return;
+
+        canvas.width = this.screen_width;
+        canvas.height = this.screen_height + this.max_balls;
+
+        var context = canvas.getContext('2d');
+        init_screen(context, this.screen_width, this.screen_height, this.max_balls);
+
+    },
+    methods: {
+        clickCalc: function() {
+            max_balls = Number(this.max_balls);
+            radius = Number(this.radius);
+            screen_width = Number(this.screen_width);
+            screen_height = Number(this.screen_height);
+            sleep_sec = Number(this.sleep_sec);
+            bar_pos_x = Number(this.bar_pos_x);
+            bar_height = Number(this.bar_height);
+            bar_width = Number(this.bar_width);
+
+            if (bar_pos_x <= 0 || bar_height <= 0) {
+                var result = calc(max_balls, radius, screen_width, screen_height, sleep_sec, max_balls, false, new Bar(bar_pos_x, bar_height, bar_width), turns_required_for_heal, ratio_of_balls_stoppted);            
+            } else {
+                var result = calc(max_balls, radius, screen_width, screen_height, sleep_sec, max_balls, true, new Bar(bar_pos_x, bar_height, bar_width), turns_required_for_heal, ratio_of_balls_stoppted);
+            }
+
+            console.log(result);
+        },
+        click_sleep_sec_muins: function() {
+            if (this.sleep_sec > 0.0) {
+                this.sleep_sec = Math.floor((this.sleep_sec - 0.11)*10)/10.0;
+                if (this.sleep_sec < 0.0)
+                    this.sleep_sec = 0.0;
+            }
+        },
+        click_sleep_sec_plus: function() {
+            this.sleep_sec = Math.floor((this.sleep_sec + 0.11)*10)/10.0;
+        },
+    },
+})
+</script>
+</html>
