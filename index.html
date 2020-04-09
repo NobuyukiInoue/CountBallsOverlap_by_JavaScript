@@ -31,9 +31,10 @@
         </td></tr></div>
         <div>
             <tr>
-                <td><button type="button" id="button_setDefaultValue" v-on:click='clickSetDefaultValues' class="btn">Set Default Value</button></td>
+                <td><button type="button" id="button_reset" v-on:click='clickReset' class="btn">Reset</button></td>
                 <td>
                     <button type="button" id="button_start" v-on:click='clickStart' class="btn">Start</button>
+                    <button type="button" id="button_pause" v-on:click='clickPause' class="btn">Pause</button>
                     <button type="button" id="button_stop" v-on:click='clickStop' class="btn">Stop</button>
                 </td>
                 <td></td>
@@ -194,9 +195,10 @@ class Ball {
     }
 
     check_contact(target_pos) {
-        if (Math.abs(target_pos.x - this.pos.x) <= this.radius && Math.abs(target_pos.y - this.pos.y) <= this.radius) {
+        if (Math.sqrt((target_pos.x - this.pos.x)**2 + (target_pos.y - this.pos.y)**2) < 2*this.radius) {
             return true;
         }
+
         return false;
     }
 
@@ -367,7 +369,16 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
     var context = canvas.getContext('2d');
 
     function render() {
+
+        if (document.querySelector("#button_pause").innerText == "Restart") {
+            // When the Pause button is pressed.
+            return;
+        }
+
         context.save();
+
+        var button_pause = document.querySelector("#button_pause");
+
 
         init_screen(context, PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT, PARAMS.CHART_HEIGHT);
 
@@ -559,8 +570,10 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
             // stop timer call render()
             clearInterval(timer);
 
-            var button_start = document.querySelector("#button_start");
-            button_start.disabled = false;
+            document.querySelector("#button_start").disabled = false;
+            document.querySelector("#button_pause").disabled = true;
+            document.querySelector("#button_stop").disabled = true;
+
 
         } else if (infected_count == 0) {
 
@@ -571,10 +584,9 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
             // stop call render()
             clearInterval(timer);
 
-            isRunning = false;
-
-            var button_start = document.querySelector("#button_start");
-            button_start.disabled = false;
+            document.querySelector("#button_start").disabled = false;
+            document.querySelector("#button_pause").disabled = true;
+            document.querySelector("#button_stop").disabled = true;
 
         } else {
 
@@ -624,22 +636,6 @@ function calc_end(context, PARAMS, results, RATIO_DRAW_WIDTH, RATIO_INFECTED_INC
 */
     console.log("calc() end.");
 }
-
-function stop() {
-    var button_start = document.querySelector("#button_start");
-    var button_stop = document.querySelector("#button_stop");
-
-    if (button_stop.innerText == "Stop" && button_start.disabled) {
-        // when running.
-        clearInterval(timer);
-
-        var button_start = document.querySelector("#button_start");
-        button_start.disabled = false;
-
-        var button_stop = document.querySelector("#button_stop");
-        button_stop.disabled = true;
-    }
-}
 </script>
 
 <script>
@@ -674,10 +670,11 @@ var vm = new Vue({
 
     mounted: function() {
         // set Default Values.
-        this.clickSetDefaultValues();
+        this.clickReset();
 
-        var button_stop = document.querySelector("#button_stop");
-        button_stop.disabled = true;
+        document.querySelector("#button_start").disabled = false;
+        document.querySelector("#button_pause").disabled = true;
+        document.querySelector("#button_stop").disabled = true;
 
         var canvas = document.getElementById("screen");
 
@@ -691,7 +688,7 @@ var vm = new Vue({
         init_screen(context, this.screen_width, this.screen_height, this.max_balls);
     },
     methods: {
-        clickSetDefaultValues: function() {
+        clickReset: function() {
             this.max_balls = 300;
             this.radius = 3;
             this.screen_width = 640;
@@ -706,11 +703,9 @@ var vm = new Vue({
             this.enable_bar = false;
         },
         clickStart: function() {
-            var button_start = document.querySelector("#button_start");
-            button_start.disabled = true;
-
-            var button_stop = document.querySelector("#button_stop");
-            button_stop.disabled = false;
+            document.querySelector("#button_start").disabled = true;
+            document.querySelector("#button_pause").disabled = false;
+            document.querySelector("#button_stop").disabled = false;
 
             max_balls = Number(this.max_balls);
             radius = Number(this.radius);
@@ -732,8 +727,34 @@ var vm = new Vue({
             var result = calc(max_balls, radius, screen_width, screen_height, chart_height, sleep_sec, enable_bar, new Bar(bar_pos_x, bar_height, bar_width), turns_required_for_heal, ratio_of_balls_stoppted);
             console.log(result);
         },
+        clickPause: function() {
+
+            console.log("button_pause pushed.");
+
+            if (document.querySelector("#button_start").disabled == false)
+                return;
+
+            var button_pause = document.querySelector("#button_pause");
+
+            if (button_pause.innerText == "Pause") {
+                button_pause.innerText = "Restart"
+
+            } else {
+                button_pause.innerText = "Pause"
+            }
+        },
         clickStop: function() {
-            stop();
+
+            console.log("button_stop pushed.");
+
+            // when running.
+            clearInterval(timer);
+
+            document.querySelector("#button_start").disabled = false;
+            document.querySelector("#button_pause").disabled = true;
+            document.querySelector("#button_stop").disabled = true;
+            document.querySelector("#button_pause").innerText = "Pause"
+
         },
         click_sleep_sec_minus: function() {
             if (this.sleep_sec > 0.0) {
@@ -746,6 +767,7 @@ var vm = new Vue({
         },
         click_sleep_sec_plus: function() {
             this.sleep_sec = Math.floor((this.sleep_sec + 0.11)*10)/10.0;
+
         },
         click_ratio_stopped_minus: function() {
             if (this.ratio_of_balls_stoppted > 0.0) {
