@@ -16,6 +16,7 @@
         <div><tr><td>Radius:</td><td><input v-model="radius" type="number"/></td></tr></div>
         <div><tr><td>screen width:</td><td><input v-model="screen_width" type="number"/></td></tr></div>
         <div><tr><td>screen height:</td><td><input v-model="screen_height" type="number"/></td></tr></div>
+        <div><tr><td>chart height:</td><td><input v-model="chart_height" type="number"/></td></tr></div>
         <div><tr><td>sleep second(wait)[s]:</td><td><input v-model="sleep_sec" type="number"/>
             <button type="button" v-on:click="click_sleep_sec_minus">- 0.1</button>
             <button type="button" v-on:click="click_sleep_sec_plus">+ 0.1</button>
@@ -28,7 +29,16 @@
             <button type="button" v-on:click="click_ratio_stopped_minus">- 0.1</button>
             <button type="button" v-on:click="click_ratio_stopped_plus">+ 0.1</button>
         </td></tr></div>
-        <div><tr><td></td><td><button type="button"  v-on:click='clickCalc' class="btn">Start</button></td></tr></div>
+        <div>
+            <tr>
+                <td><button type="button" id="button_setDefaultValue" v-on:click='clickSetDefaultValues' class="btn">Set Default Value</button></td>
+                <td>
+                    <button type="button" id="button_start" v-on:click='clickStart' class="btn">Start</button>
+                    <button type="button" id="button_stop" v-on:click='clickStop' class="btn">Stop</button>
+                </td>
+                <td></td>
+            </tr>
+        </div>
     </table>
     </div>
     <div>
@@ -38,17 +48,25 @@
     </div>
 </body>
 <script>
+/*==========================================*/
+/* Global variables
+/*==========================================*/
+var timer;                 // return value for setInterval().
+
+/*==========================================*/
+/* Global Class
+/*==========================================*/
 class Params {
-    constructor(start_wait, screen_width, screen_height, max_balls, radius, movement, sleep_sec, chart_height, enable_bar, bar, turn_for_heals, ratio_of_balls_stoppted) {
+    constructor(start_wait, max_balls, radius, screen_width, screen_height, chart_height, movement, sleep_sec, enable_bar, bar, turn_for_heals, ratio_of_balls_stoppted) {
         // default params.
         this.START_WAIT = start_wait;
-        this.SCREEN_WIDTH = screen_width;
-        this.SCREEN_HEIGHT = screen_height;
         this.MAX_BALLS = max_balls;
         this.RADIUS = radius;
+        this.SCREEN_WIDTH = screen_width;
+        this.SCREEN_HEIGHT = screen_height;
+        this.CHART_HEIGHT = chart_height;
         this.MOVEMENT = movement;
         this.SLEEP_SEC = sleep_sec;
-        this.CHART_HEIGHT = chart_height;
         this.ENABLE_BAR = enable_bar;
         this.BAR = bar;
         this.TURNS_REQUIRED_FOR_HEAL = turn_for_heals;  // -1 ... Does not heal.
@@ -57,13 +75,13 @@ class Params {
 
     memberToString() {
         var res = "";
-        res += "  SCREEN_WIDTH = " + this.SCREEN_WIDTH + ",\n";
-        res += "  SCREEN_HEIGHT = " + this.SCREEN_HEIGHT + ",\n";
         res += "  MAX_BALLS = " + this.MAX_BALLS + ",\n";
         res += "  RADIUS = " + this.RADIUS + ",\n";
+        res += "  SCREEN_WIDTH = " + this.SCREEN_WIDTH + ",\n";
+        res += "  SCREEN_HEIGHT = " + this.SCREEN_HEIGHT + ",\n";
+        res += "  CHART_HEIGHT = " + this.CHART_HEIGHT + ",\n";
         res += "  MOVEMENT = (\n" + this.MOVEMENT.memberToString() + "  ),\n";
         res += "  SLEEP_SEC = " + this.SLEEP_SEC + ",\n";
-        res += "  CHART_HEIGHT = " + this.CHART_HEIGHT + ",\n";
         res += "  TURNS_REQUIRED_FOR_HEAL = " + this.TURNS_REQUIRED_FOR_HEAL + ",\n";
         res += "  RATIO_OF_BALLS_STOPPED = " + this.RATIO_OF_BALLS_STOPPED + ",\n";
         res += "  ENABLE_BAR = " + this.ENABLE_BAR + ",\n";
@@ -251,16 +269,16 @@ function init_screen(context, SCREEN_WIDTH, SCREEN_HEIGHT, CHART_HEIGHT) {
     context.stroke();
 }
 
-function calc(balls_max, radius, screen_width, screen_height, sleep_sec, chart_height, enable_bar, bar, turns_required_for_heal, ratio_of_balls_stoppted) {
+function calc(balls_max, radius, screen_width, screen_height, chart_height, sleep_sec, enable_bar, bar, turns_required_for_heal, ratio_of_balls_stoppted) {
     var PARAMS = new Params(
         0,                 // START_WAIT
-        screen_width,
-        screen_height,
         max_balls,
         radius,
+        screen_width,
+        screen_height,
+        chart_height,
         new Movement(-3, 3),
         sleep_sec,
-        chart_height,
         enable_bar,
         bar,
         turns_required_for_heal,
@@ -337,7 +355,6 @@ function calc(balls_max, radius, screen_width, screen_height, sleep_sec, chart_h
     var turn = 0;
     var pre_result = new Results(turn, contacted_count, contacted_count, 0, PARAMS.MAX_BALLS - contacted_count);
     var RATIO_INFECTED_INCREMENTAL = 3;
-    var timer;
 
     var canvas = document.getElementById("screen");
 
@@ -445,7 +462,9 @@ function calc(balls_max, radius, screen_width, screen_height, sleep_sec, chart_h
                 }
             }
 
-            RATIO_DRAW_HEIGHT = 1;
+            //RATIO_DRAW_HEIGHT = 1;
+            RATIO_DRAW_HEIGHT = PARAMS.CHART_HEIGHT / PARAMS.MAX_BALLS;
+
             pre_x = pre_infected = pre_healed = 0;
             context.lineWidth = 1;
 
@@ -536,8 +555,12 @@ function calc(balls_max, radius, screen_width, screen_height, sleep_sec, chart_h
             console.log("End ... All balls are infected. (turn = %d)", turn)
             calc_end(context, PARAMS, results, RATIO_DRAW_WIDTH, RATIO_INFECTED_INCREMENTAL);
 
+
             // stop timer call render()
             clearInterval(timer);
+
+            var button_start = document.querySelector("#button_start");
+            button_start.disabled = false;
 
         } else if (infected_count == 0) {
 
@@ -547,6 +570,11 @@ function calc(balls_max, radius, screen_width, screen_height, sleep_sec, chart_h
 
             // stop call render()
             clearInterval(timer);
+
+            isRunning = false;
+
+            var button_start = document.querySelector("#button_start");
+            button_start.disabled = false;
 
         } else {
 
@@ -596,20 +624,37 @@ function calc_end(context, PARAMS, results, RATIO_DRAW_WIDTH, RATIO_INFECTED_INC
 */
     console.log("calc() end.");
 }
+
+function stop() {
+    var button_start = document.querySelector("#button_start");
+    var button_stop = document.querySelector("#button_stop");
+
+    if (button_stop.innerText == "Stop" && button_start.disabled) {
+        // when running.
+        clearInterval(timer);
+
+        var button_start = document.querySelector("#button_start");
+        button_start.disabled = false;
+
+        var button_stop = document.querySelector("#button_stop");
+        button_stop.disabled = true;
+    }
+}
 </script>
 
 <script>
-var max_balls = 300;
-var radius = 3;
-var screen_width = 640;
-var screen_height = 480;
-var sleep_sec = 0.0;
-var bar_pos_x = 200;
-var bar_height = 200;
-var bar_width = 6;
-var turns_required_for_heal = 100;
-var ratio_of_balls_stoppted = 0.0;
-var enable_bar = false;
+var max_balls;
+var radius;
+var screen_width;
+var screen_height;
+var chart_height;
+var sleep_sec;
+var bar_pos_x;
+var bar_height;
+var bar_width;
+var turns_required_for_heal;
+var ratio_of_balls_stoppted;
+var enable_bar;
 
 var vm = new Vue({
     el: '#app',
@@ -618,6 +663,7 @@ var vm = new Vue({
         radius: radius,
         screen_width: screen_width,
         screen_height: screen_height,
+        chart_height: chart_height,
         sleep_sec: sleep_sec,
         bar_pos_x: bar_pos_x,
         bar_height: bar_height,
@@ -627,7 +673,12 @@ var vm = new Vue({
    },
 
     mounted: function() {
-    //  this.clickCalc();
+        // set Default Values.
+        this.clickSetDefaultValues();
+
+        var button_stop = document.querySelector("#button_stop");
+        button_stop.disabled = true;
+
         var canvas = document.getElementById("screen");
 
         if (canvas.getContext == null)
@@ -638,14 +689,34 @@ var vm = new Vue({
 
         var context = canvas.getContext('2d');
         init_screen(context, this.screen_width, this.screen_height, this.max_balls);
-
     },
     methods: {
-        clickCalc: function() {
+        clickSetDefaultValues: function() {
+            this.max_balls = 300;
+            this.radius = 3;
+            this.screen_width = 640;
+            this.screen_height = 480;
+            this.chart_height = 300;
+            this.sleep_sec = 0.0;
+            this.bar_pos_x = 200;
+            this.bar_height = 200;
+            this.bar_width = 6;
+            this.turns_required_for_heal = 100;
+            this.ratio_of_balls_stoppted = 0.0;
+            this.enable_bar = false;
+        },
+        clickStart: function() {
+            var button_start = document.querySelector("#button_start");
+            button_start.disabled = true;
+
+            var button_stop = document.querySelector("#button_stop");
+            button_stop.disabled = false;
+
             max_balls = Number(this.max_balls);
             radius = Number(this.radius);
             screen_width = Number(this.screen_width);
             screen_height = Number(this.screen_height);
+            chart_height = Number(this.chart_height);
             sleep_sec = Number(this.sleep_sec);
             bar_pos_x = Number(this.bar_pos_x);
             bar_height = Number(this.bar_height);
@@ -658,9 +729,11 @@ var vm = new Vue({
             } else {
                 enable_bar = true;
             }
-            var result = calc(max_balls, radius, screen_width, screen_height, sleep_sec, max_balls, enable_bar, new Bar(bar_pos_x, bar_height, bar_width), turns_required_for_heal, ratio_of_balls_stoppted);
-
+            var result = calc(max_balls, radius, screen_width, screen_height, chart_height, sleep_sec, enable_bar, new Bar(bar_pos_x, bar_height, bar_width), turns_required_for_heal, ratio_of_balls_stoppted);
             console.log(result);
+        },
+        clickStop: function() {
+            stop();
         },
         click_sleep_sec_minus: function() {
             if (this.sleep_sec > 0.0) {
