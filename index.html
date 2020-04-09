@@ -14,20 +14,23 @@
     <table border = 0>
         <div><tr><td>Balls:</td><td><input v-model="max_balls" type="number"/></td></tr></div>
         <div><tr><td>Radius:</td><td><input v-model="radius" type="number"/></td></tr></div>
-        <div><tr><td>screen_width:</td><td><input v-model="screen_width" type="number"/></td></tr></div>
-        <div><tr><td>screen_height:</td><td><input v-model="screen_height" type="number"/></td></tr></div>
-        <div><tr><td>sleep_sec(wait):</td><td><input v-model="sleep_sec" type="number"/>
-            <button type="button" v-on:click="click_sleep_sec_muins">- 0.1</button>
+        <div><tr><td>screen width:</td><td><input v-model="screen_width" type="number"/></td></tr></div>
+        <div><tr><td>screen height:</td><td><input v-model="screen_height" type="number"/></td></tr></div>
+        <div><tr><td>sleep second(wait)[s]:</td><td><input v-model="sleep_sec" type="number"/>
+            <button type="button" v-on:click="click_sleep_sec_minus">- 0.1</button>
             <button type="button" v-on:click="click_sleep_sec_plus">+ 0.1</button>
         </td></tr></div>
-        <div><tr><td>bar_pos_x:</td><td><input v-model="bar_pos_x" type="number"/></td></tr></div>
-        <div><tr><td>bar_height:</td><td><input v-model="bar_height" type="number"/></td></tr></div>
-        <div><tr><td>bar_width:</td><td><input v-model="bar_width" type="number"/></td></tr></div>
-        <div><tr><td>TURNS_REQUIRED_FOR_HEAL:</td><td><input v-model="turns_required_for_heal" type="number"/></td></tr></div>
+        <div><tr><td>bar_pos_x:</td><td><input v-model="bar_pos_x" type="number"/></td><td>0 ... enable_bar = false.<td></tr></div>
+        <div><tr><td>bar_height:</td><td><input v-model="bar_height" type="number"/></td><td>0 ... enable_bar = false.<td></tr></div>
+        <div><tr><td>bar_width:</td><td><input v-model="bar_width" type="number"/></td><td>0 ... enable_bar = false.<td></tr></div>
+        <div><tr><td>turns require for heal:</td><td><input v-model="turns_required_for_heal" type="number"/></td></tr></div>
+        <div><tr><td>ratio of balls stoppted:</td><td><input v-model="ratio_of_balls_stoppted" type="number"/>
+            <button type="button" v-on:click="click_ratio_stopped_minus">- 0.1</button>
+            <button type="button" v-on:click="click_ratio_stopped_plus">+ 0.1</button>
+        </td></tr></div>
         <div><tr><td></td><td><button type="button"  v-on:click='clickCalc' class="btn">Start</button></td></tr></div>
     </table>
     </div>
-    <br>
     <div>
         <canvas width="640" height="780" id="screen" style="background-color:white;">
           You need a browser that supports the canvas tag.
@@ -92,7 +95,7 @@ class Bar {
     }
 }
 
-class Postion {
+class Position {
     constructor(x, y) {
        this.x = x;
        this.y = y;
@@ -219,7 +222,7 @@ function init_ball_position(PARAMS) {
     }
     y = Math.floor(Math.random() *(PARAMS.SCREEN_HEIGHT - PARAMS.RADIUS - PARAMS.RADIUS)) + PARAMS.RADIUS;
 
-    return new Postion(x, y)
+    return new Position(x, y)
 }
 
 function init_screen(context, SCREEN_WIDTH, SCREEN_HEIGHT, CHART_HEIGHT) {
@@ -259,7 +262,7 @@ function calc(balls_max, radius, screen_width, screen_height, sleep_sec, chart_h
         sleep_sec,
         chart_height,
         enable_bar,
-        BAR = bar,
+        bar,
         turns_required_for_heal,
         ratio_of_balls_stoppted
     );
@@ -282,12 +285,12 @@ function calc(balls_max, radius, screen_width, screen_height, sleep_sec, chart_h
         // When RATIO_OF_BALLS_STOPPED is not specified.
         for (var i = 0; i < PARAMS.MAX_BALLS; i++) {
             var pos = init_ball_position(PARAMS);
-            var add = new Postion(0, 0);
+            var add = new Position(0, 0);
             while (add.x == 0)
                 add.x = Math.floor(Math.random() * (PARAMS.MOVEMENT.max - PARAMS.MOVEMENT.min)) + PARAMS.MOVEMENT.min;
             while (add.y == 0)
                 add.y = Math.floor(Math.random() * (PARAMS.MOVEMENT.max - PARAMS.MOVEMENT.min)) + PARAMS.MOVEMENT.min;
-            balls[i] = new Ball(pos, add, new Postion(PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT), PARAMS.RADIUS, "blue");
+            balls[i] = new Ball(pos, add, new Position(PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT), PARAMS.RADIUS, "blue");
         }
     } else {
         // When RATIO_OF_BALLS_STOPPED is specified.
@@ -299,13 +302,14 @@ function calc(balls_max, radius, screen_width, screen_height, sleep_sec, chart_h
                 add.x = Math.floor(Math.random() * (PARAMS.MOVEMENT.max - PARAMS.MOVEMENT.min)) + PARAMS.MOVEMENT.min;
             while (add.y == 0)
                 add.y = Math.floor(Math.random() * (PARAMS.MOVEMENT.max - PARAMS.MOVEMENT.min)) + PARAMS.MOVEMENT.min;
-            balls[i] = new Ball(pos, add, new Postion(PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT), PARAMS.RADIUS, "blue");
+            balls[i] = new Ball(pos, add, new Position(PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT), PARAMS.RADIUS, "blue");
         }
 
-        var add = new Postion(0, 0);
+        var add = new Position(0, 0);
         for (var i = target_max; i < PARAMS.MAX_BALLS; i++) {
             var pos = init_ball_position(PARAMS);
-            balls[i] = new ball(pos, add, new Postion(PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT), PARAMS.RADIUS, "blue");
+            var add = new Position(0, 0);
+            balls[i] = new Ball(pos, add, new Position(PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT), PARAMS.RADIUS, "blue");
         }
     }
 
@@ -605,6 +609,7 @@ var bar_height = 200;
 var bar_width = 6;
 var turns_required_for_heal = 100;
 var ratio_of_balls_stoppted = 0.0;
+var enable_bar = false;
 
 var vm = new Vue({
     el: '#app',
@@ -645,24 +650,44 @@ var vm = new Vue({
             bar_pos_x = Number(this.bar_pos_x);
             bar_height = Number(this.bar_height);
             bar_width = Number(this.bar_width);
+            turns_required_for_heal = Number(this.turns_required_for_heal);
+            ratio_of_balls_stoppted = Number(this.ratio_of_balls_stoppted);
 
-            if (bar_pos_x <= 0 || bar_height <= 0) {
-                var result = calc(max_balls, radius, screen_width, screen_height, sleep_sec, max_balls, false, new Bar(bar_pos_x, bar_height, bar_width), turns_required_for_heal, ratio_of_balls_stoppted);            
+            if (bar_pos_x <= 0 || bar_height <= 0 || bar_width <= 0) {
+                enable_bar = false;
             } else {
-                var result = calc(max_balls, radius, screen_width, screen_height, sleep_sec, max_balls, true, new Bar(bar_pos_x, bar_height, bar_width), turns_required_for_heal, ratio_of_balls_stoppted);
+                enable_bar = true;
             }
+            var result = calc(max_balls, radius, screen_width, screen_height, sleep_sec, max_balls, enable_bar, new Bar(bar_pos_x, bar_height, bar_width), turns_required_for_heal, ratio_of_balls_stoppted);
 
             console.log(result);
         },
-        click_sleep_sec_muins: function() {
+        click_sleep_sec_minus: function() {
             if (this.sleep_sec > 0.0) {
                 this.sleep_sec = Math.floor((this.sleep_sec - 0.11)*10)/10.0;
-                if (this.sleep_sec < 0.0)
+
+                if (this.sleep_sec < 0.0) {
                     this.sleep_sec = 0.0;
+                }
             }
         },
         click_sleep_sec_plus: function() {
             this.sleep_sec = Math.floor((this.sleep_sec + 0.11)*10)/10.0;
+        },
+        click_ratio_stopped_minus: function() {
+            if (this.ratio_of_balls_stoppted > 0.0) {
+                this.ratio_of_balls_stoppted = Math.floor((this.ratio_of_balls_stoppted - 0.11)*10)/10.0;
+
+                if (this.ratio_of_balls_stoppted < 0.0) {
+                    this.ratio_of_balls_stoppted = 0.0;
+                }
+                if (this.ratio_of_balls_stoppted > 1.0) {
+                    this.ratio_of_balls_stoppted = 1.0;
+                }
+            }
+        },
+        click_ratio_stopped_plus: function() {
+            this.ratio_of_balls_stoppted = Math.floor((this.ratio_of_balls_stoppted + 0.11)*10)/10.0;
         },
     },
 })
