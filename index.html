@@ -17,7 +17,7 @@
         <div><tr><td>screen width:</td><td><input v-model="screen_width" type="number"/></td></tr></div>
         <div><tr><td>screen height:</td><td><input v-model="screen_height" type="number"/></td></tr></div>
         <div><tr><td>chart height:</td><td><input v-model="chart_height" type="number"/></td></tr></div>
-        <div><tr><td>sleep second(wait)[s]:</td><td><input v-model="sleep_sec" type="number"/>
+        <div><tr><td>display wait[s]:</td><td><input v-model="sleep_sec" type="number"/>
             <button type="button" v-on:click="click_sleep_sec_minus">- 0.01</button>
             <button type="button" v-on:click="click_sleep_sec_plus">+ 0.01</button>
         </td></tr></div>
@@ -34,8 +34,7 @@
                 <td><button type="button" id="button_reset" v-on:click='clickReset' class="btn">Reset</button></td>
                 <td>
                     <button type="button" id="button_start" v-on:click='clickStart' class="btn">Start</button>
-                    <button type="button" id="button_pause" v-on:click='clickPause' class="btn">Pause</button>
-                    <button type="button" id="button_stop" v-on:click='clickStop' class="btn">Stop</button>
+                    <button type="button" id="button_abort" v-on:click='clickAbort' class="btn">Abort</button>
                 </td>
                 <td></td>
             </tr>
@@ -401,8 +400,8 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
 
     function render() {
 
-        if (document.querySelector("#button_pause").innerText == "Restart") {
-            // When the Pause button is pressed.
+        if (document.querySelector("#button_start").innerText == "Resume") {
+            // When the [Start/Pause/Resume] button is pressed.
             return;
         }
 
@@ -573,23 +572,23 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
         // display contact count information to screen.
         context.font = '12pt Arial';
         context.fillStyle = "black"
-        context.fillText("turn = " + turn, 0, PARAMS.SCREEN_HEIGHT + 20);
-        context.fillText("TURNS_REQUIRED_FOR_HEAL = " + PARAMS.TURNS_REQUIRED_FOR_HEAL, 0, PARAMS.SCREEN_HEIGHT + 40);
-        context.fillText("contacted = " + contacted_count + "/" + PARAMS.MAX_BALLS, 0, PARAMS.SCREEN_HEIGHT + 60);
-        context.fillText("healed = " + healed_count + "/" + PARAMS.MAX_BALLS + "(GREEN)", 0, PARAMS.SCREEN_HEIGHT + 80);
-        context.fillText("infected = " + infected_count + "/" + PARAMS.MAX_BALLS + "(RED)", 0, PARAMS.SCREEN_HEIGHT + 100);
-        context.fillText("Basic reproduction number(R0)(max) = " + R0.value_max.toFixed(2) + " (turn ... " + R0.value_max_turn_end + " to " + R0.value_max_turn_begin + ")", 0, PARAMS.SCREEN_HEIGHT + 120);
+        context.fillText("turn = " + turn, 5, PARAMS.SCREEN_HEIGHT + 20);
+        context.fillText("TURNS_REQUIRED_FOR_HEAL = " + PARAMS.TURNS_REQUIRED_FOR_HEAL, 5, PARAMS.SCREEN_HEIGHT + 40);
+        context.fillText("contacted = " + contacted_count + "/" + PARAMS.MAX_BALLS, 5, PARAMS.SCREEN_HEIGHT + 60);
+        context.fillText("healed = " + healed_count + "/" + PARAMS.MAX_BALLS + "(GREEN)", 5, PARAMS.SCREEN_HEIGHT + 80);
+        context.fillText("infected = " + infected_count + "/" + PARAMS.MAX_BALLS + "(RED)", 5, PARAMS.SCREEN_HEIGHT + 100);
+        context.fillText("Basic reproduction number(R0(max)) = " + R0.value_max.toFixed(2) + " (turn ... " + R0.value_max_turn_end + " to " + R0.value_max_turn_begin + ")", 5, PARAMS.SCREEN_HEIGHT + 120);
 
         // All balls are infected.
         if (contacted_count == PARAMS.MAX_BALLS) {
-            context.fillText("infected incremental(BLUE)(ratio ... x" + DRAW_RATIO.INFECTED_INCREMENTAL + ")", 0, PARAMS.SCREEN_HEIGHT + 140);
-            context.fillText("end ... All balls are infected.", 0, PARAMS.SCREEN_HEIGHT + 180);
+            context.fillText("infected incremental(BLUE)(ratio ... x" + DRAW_RATIO.INFECTED_INCREMENTAL + ")", 5, PARAMS.SCREEN_HEIGHT + 140);
+            context.fillText("end ... All balls are infected.", 5, PARAMS.SCREEN_HEIGHT + 180);
         }
 
         // The infected balls are gone.
         if (infected_count == 0) {
-            context.fillText("infected incremental(BLUE)(ratio ... x" + DRAW_RATIO.INFECTED_INCREMENTAL + ")", 0, PARAMS.SCREEN_HEIGHT + 140);
-            context.fillText("end ... The infected balls are gone.", 0, PARAMS.SCREEN_HEIGHT + 180);
+            context.fillText("infected incremental(BLUE)(ratio ... x" + DRAW_RATIO.INFECTED_INCREMENTAL + ")", 5, PARAMS.SCREEN_HEIGHT + 140);
+            context.fillText("end ... The infected balls are gone.", 5, PARAMS.SCREEN_HEIGHT + 180);
         }
 
         // draw scale line.
@@ -613,9 +612,10 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
             // stop timer call render()
             clearInterval(timer);
 
+            document.querySelector("#button_start").innerText = "Start";
             document.querySelector("#button_start").disabled = false;
-            document.querySelector("#button_pause").disabled = true;
-            document.querySelector("#button_stop").disabled = true;
+            document.querySelector("#button_abort").disabled = true;
+            document.querySelector("#button_reset").disabled = false;
 
         } else if (infected_count == 0) {
 
@@ -623,12 +623,13 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
             console.log("End ... The infected ball is gone.  (turn = %d)", turn);
             calc_end(context, PARAMS, results, DRAW_RATIO);
 
-            // stop call render()
+            // stop timer call render()
             clearInterval(timer);
 
+            document.querySelector("#button_start").innerText = "Start";
             document.querySelector("#button_start").disabled = false;
-            document.querySelector("#button_pause").disabled = true;
-            document.querySelector("#button_stop").disabled = true;
+            document.querySelector("#button_abort").disabled = true;
+            document.querySelector("#button_reset").disabled = false;
 
         } else {
 
@@ -648,6 +649,7 @@ function print_all_balls(balls) {
 
 function draw_scale_line(context, PARAMS) {
     context.strokeStyle = "black";
+    context.lineWidth = 1;
     var currentLineDash = context.getLineDash();
     context.setLineDash([1, 8]);
 
@@ -737,8 +739,7 @@ var vm = new Vue({
         this.clickReset();
 
         document.querySelector("#button_start").disabled = false;
-        document.querySelector("#button_pause").disabled = true;
-        document.querySelector("#button_stop").disabled = true;
+        document.querySelector("#button_abort").disabled = true;
 
         var canvas = document.getElementById("screen");
 
@@ -768,60 +769,59 @@ var vm = new Vue({
             this.ratio_of_balls_stoppted = 0.0;
             this.enable_bar = false;
             this.textarea_result = "";
+
+            document.querySelector("#button_start").innerText == "Start";
+            document.querySelector("#button_start").disabled = false;
+            document.querySelector("#button_abort").disabled = true;
         },
         clickStart: function() {
-            document.querySelector("#button_start").disabled = true;
-            document.querySelector("#button_pause").disabled = false;
-            document.querySelector("#button_stop").disabled = false;
+            if (document.querySelector("#button_start").innerText == "Start") {
+                console.log("button[Start] pushed.");
+                document.querySelector("#button_start").innerText = "Pause";
+                document.querySelector("#button_abort").disabled = false;
+                document.querySelector("#button_reset").disabled = true;
 
-            max_balls = Number(this.max_balls);
-            radius = Number(this.radius);
-            screen_width = Number(this.screen_width);
-            screen_height = Number(this.screen_height);
-            chart_height = Number(this.chart_height);
-            sleep_sec = Number(this.sleep_sec);
-            bar_pos_x = Number(this.bar_pos_x);
-            bar_height = Number(this.bar_height);
-            bar_width = Number(this.bar_width);
-            turns_required_for_heal = Number(this.turns_required_for_heal);
-            ratio_of_balls_stoppted = Number(this.ratio_of_balls_stoppted);
+                max_balls = Number(this.max_balls);
+                radius = Number(this.radius);
+                screen_width = Number(this.screen_width);
+                screen_height = Number(this.screen_height);
+                chart_height = Number(this.chart_height);
+                sleep_sec = Number(this.sleep_sec);
+                bar_pos_x = Number(this.bar_pos_x);
+                bar_height = Number(this.bar_height);
+                bar_width = Number(this.bar_width);
+                turns_required_for_heal = Number(this.turns_required_for_heal);
+                ratio_of_balls_stoppted = Number(this.ratio_of_balls_stoppted);
 
-            if (bar_pos_x <= 0 || bar_height <= 0 || bar_width <= 0) {
-                enable_bar = false;
-            } else {
-                enable_bar = true;
-            }
-            var result = calc(max_balls, radius, screen_width, screen_height, chart_height, sleep_sec, enable_bar, new Bar(bar_pos_x, bar_height, bar_width), turns_required_for_heal, ratio_of_balls_stoppted);
-            console.log(result);
-        },
-        clickPause: function() {
+                if (bar_pos_x <= 0 || bar_height <= 0 || bar_width <= 0) {
+                    enable_bar = false;
+                } else {
+                    enable_bar = true;
+                }
+                var result = calc(max_balls, radius, screen_width, screen_height, chart_height, sleep_sec, enable_bar, new Bar(bar_pos_x, bar_height, bar_width), turns_required_for_heal, ratio_of_balls_stoppted);
+                console.log(result);
 
-            console.log("button_pause pushed.");
+            } else if (document.querySelector("#button_start").innerText == "Pause") {
+                console.log("button[Pause] pushed.");
+                document.querySelector("#button_start").innerText = "Resume";
+                document.querySelector("#button_abort").disabled = false;
 
-            if (document.querySelector("#button_start").disabled == false)
-                return;
-
-            var button_pause = document.querySelector("#button_pause");
-
-            if (button_pause.innerText == "Pause") {
-                button_pause.innerText = "Restart"
-
-            } else {
-                button_pause.innerText = "Pause"
+            } else if (document.querySelector("#button_start").innerText == "Resume") {
+                console.log("button[Resume] pushed.");
+                document.querySelector("#button_start").innerText = "Pause";
+                document.querySelector("#button_abort").disabled = false;
             }
         },
-        clickStop: function() {
+        clickAbort: function() {
+            console.log("button[Abort] pushed.");
 
-            console.log("button_stop pushed.");
-
-            // when running.
+            // stop timer call render()
             clearInterval(timer);
 
+            document.querySelector("#button_start").innerText = "Start";
             document.querySelector("#button_start").disabled = false;
-            document.querySelector("#button_pause").disabled = true;
-            document.querySelector("#button_stop").disabled = true;
-            document.querySelector("#button_pause").innerText = "Pause"
-
+            document.querySelector("#button_abort").disabled = true;
+            document.querySelector("#button_reset").disabled = false;
         },
         click_sleep_sec_minus: function() {
             if (this.sleep_sec > 0.0) {
