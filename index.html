@@ -48,11 +48,13 @@
         </canvas>
     </div>
 </body>
+
 <script>
 /*==========================================*/
 /* Global variables
 /*==========================================*/
 var timer;                 // return value for setInterval().
+var log_result;
 
 /*==========================================*/
 /* Global Class
@@ -87,6 +89,23 @@ class Params {
         res += "  RATIO_OF_BALLS_STOPPED = " + this.RATIO_OF_BALLS_STOPPED + ",\n";
         res += "  ENABLE_BAR = " + this.ENABLE_BAR + ",\n";
         
+        return res;
+    }
+}
+
+class DrawRatio {
+    constructor(PARAMS, infected_incremental) {
+        this.INFECTED_INCREMENTAL = 3;
+        this.WIDTH = 1;
+        this.HEIGHT = PARAMS.CHART_HEIGHT / PARAMS.MAX_BALLS;
+    }
+
+    memberToString() {
+        var res = "";
+        res += "  INFECTED_INCREMENTAL = " + this.INFECTED_INCREMENTAL;
+        res += "  DRAW_WIDTH = " + this.DRAW_WIDTH;
+        res += "  DRAW_HEIGHT = " + this.DRAW_HEIGHT;
+
         return res;
     }
 }
@@ -128,10 +147,11 @@ class Ball {
         this.pos = pos_xy;
         this.add = add_xy; 
         this.max = max_xy;
-        this.contact = false;
+        this.contacted = false;
         this.turn_heal = -1;
         this.turn_infection = -1;
         this.healed = false;
+        this.infectedTo_Count = 0;
     }
 
     get_position() {
@@ -182,19 +202,19 @@ class Ball {
         this.pos.y += this.add.y;
     }
 
-    set_contact(turn_infection, turn_heal, mycolor) {
+    set_contacted(turn_infection, turn_heal, mycolor) {
         this.forecolor = mycolor;
-        this.contact = true;
+        this.contacted = true;
         this.turn_infection = turn_infection;
         this.turn_heal = this.turn_infection + turn_heal;
     }
 
-    set_heal(mycolor) {
+    set_healed(mycolor) {
         this.healed = true;
         this.forecolor = mycolor;
     }
 
-    check_contact(target_pos) {
+    isOverlapTo(target_pos) {
         if (Math.sqrt((target_pos.x - this.pos.x)**2 + (target_pos.y - this.pos.y)**2) < 2*this.radius) {
             return true;
         }
@@ -209,7 +229,7 @@ class Ball {
         resultStr += "  pos = (" + this.pos.x + ", " + this.pos.y + "),\n";
         resultStr += "  add = (" + this.add.x + ", " + this.add.y + "),\n";; 
         resultStr += "  max = (" + this.max.x + ", " + this.max.y + "),\n";
-        resultStr += "  contact = " + this.contact + ",\n";
+        resultStr += "  contact = " + this.contacted + ",\n";
         resultStr += "  turn_heal = " + this.turn_heal + ",\n";
         resultStr += "  turn_infection = " + this.turn_infection + ",\n";
         resultStr += "  healed = " + this.healed + ",\n";
@@ -228,6 +248,19 @@ class Results {
     }
 }
 
+// class for "Basic reproduction number"(R0).
+class R_Note {
+    constructor(results_width) {
+        this.results_WIDTH = results_width;
+        this.term_turn = 0;
+        this.term_incremental = 0;
+        this.value = 0;
+        this.value_max = 0;
+        this.value_max_turn_begin = 0;
+        this.value_max_turn_end = 0;
+    }
+}
+
 function init_ball_position(PARAMS) {
     var x, y;
     
@@ -242,7 +275,7 @@ function init_ball_position(PARAMS) {
     }
     y = Math.floor(Math.random() *(PARAMS.SCREEN_HEIGHT - PARAMS.RADIUS - PARAMS.RADIUS)) + PARAMS.RADIUS;
 
-    return new Position(x, y)
+    return new Position(x, y);
 }
 
 function init_screen(context, SCREEN_WIDTH, SCREEN_HEIGHT, CHART_HEIGHT) {
@@ -346,7 +379,7 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
         }
     }
 
-    balls[target_i].set_contact(0, PARAMS.TURNS_REQUIRED_FOR_HEAL, "red");
+    balls[target_i].set_contacted(0, PARAMS.TURNS_REQUIRED_FOR_HEAL, "red");
     console.log("target ... balls[%d] = (\n%s)\n", target_i, balls[target_i].memberToString());
 
 //  print_all_balls(balls);
@@ -356,7 +389,8 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
     var index = 0;
     var turn = 0;
     var pre_result = new Results(turn, contacted_count, contacted_count, 0, PARAMS.MAX_BALLS - contacted_count);
-    var RATIO_INFECTED_INCREMENTAL = 3;
+    var DRAW_RATIO = new DrawRatio(PARAMS, 3);
+    var R0 = new R_Note(5);
 
     var canvas = document.getElementById("screen");
 
@@ -375,18 +409,13 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
             return;
         }
 
-        context.save();
-
-        var button_pause = document.querySelector("#button_pause");
-
-
         init_screen(context, PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT, PARAMS.CHART_HEIGHT);
 
         // heal check.
         if (turn > 0) {
             for (var i = 0; i < PARAMS.MAX_BALLS; i++) {
-                if (balls[i].contact && balls[i].turn_heal == turn) {
-                    balls[i].set_heal("green");
+                if (balls[i].contacted && balls[i].turn_heal == turn) {
+                    balls[i].set_healed("green");
                 }
             }
         }
@@ -396,27 +425,29 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
         var healed_count = 0;
         for (var i = 0; i < PARAMS.MAX_BALLS; i++) {
 
-            if (balls[i].contact && balls[i].healed == false)
+            if (balls[i].contacted && balls[i].healed == false)
                 infected_count++;
 
             if (balls[i].healed)
                 healed_count++;
                 
             for (var j = i + 1; j < PARAMS.MAX_BALLS; j++) {
-                var conditions_i = balls[i].contact && balls[i].healed == false;
-                var conditions_j = balls[j].contact && balls[j].healed == false;
+                var conditions_i = balls[i].contacted && balls[i].healed == false;
+                var conditions_j = balls[j].contacted && balls[j].healed == false;
                 if (conditions_i && conditions_j)
                     continue;
                 if (balls[i].healed || balls[j].healed)
                     continue;
                 if (conditions_i) {
-                    if (balls[i].check_contact(balls[j].get_position())) {
-                        balls[j].set_contact(turn, PARAMS.TURNS_REQUIRED_FOR_HEAL, "red");
+                    if (balls[i].isOverlapTo(balls[j].get_position())) {
+                        balls[i].infectedTo_Count++;
+                        balls[j].set_contacted(turn, PARAMS.TURNS_REQUIRED_FOR_HEAL, "red");
                         contacted_count++;
                     }
                 } else if (conditions_j) {
-                    if (balls[j].check_contact(balls[i].get_position())) {
-                        balls[i].set_contact(turn, PARAMS.TURNS_REQUIRED_FOR_HEAL, "red");
+                    if (balls[j].isOverlapTo(balls[i].get_position())) {
+                        balls[j].infectedTo_Count++;
+                        balls[i].set_contacted(turn, PARAMS.TURNS_REQUIRED_FOR_HEAL, "red");
                         contacted_count++;
                     }
                 }
@@ -454,9 +485,9 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
         }
 
         // print contact count information to console.
-        if (contacted_count != pre_result.contacted_count
-         || infected_count != pre_result.infected_count
-         || healed_count != pre_result.healed_count) {
+        if (contacted_count != pre_result.contacted
+         || infected_count != pre_result.infected
+         || healed_count != pre_result.healed) {
 
             results.push(new Results(turn, contacted_count, infected_count, healed_count, PARAMS.MAX_BALLS - contacted_count));
             console.log("%d:%d,%d,%d,%d", turn, contacted_count, infected_count, healed_count, PARAMS.MAX_BALLS - contacted_count);
@@ -464,23 +495,35 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
             pre_result = new Results(turn, turn, contacted_count, infected_count, healed_count, PARAMS.MAX_BALLS - contacted_count);
         }
 
+        if (results.length > R0.results_WIDTH) {
+            R0.term_incremental = results[results.length - 1].infected - results[results.length - 1 - R0.results_WIDTH].infected;
+            if (R0.term_incremental > 0) {
+                R0.term_turn = results[results.length - 1].turn - results[results.length - 1 - R0.results_WIDTH].turn;
+            //  R0 = (term_incremental/term_turn)*(1/PARAMS.TURNS_REQUIRED_FOR_HEAL);
+            //  R0.value = (term_incremental/term_turn)*PARAMS.TURNS_REQUIRED_FOR_HEAL;
+                R0.value = R0.term_incremental/R0.term_turn;
+                if (R0.value > R0.value_max) {
+                    R0.value_max = R0.value;
+                    R0.value_max_turn_begin = results[results.length - 1].turn;
+                    R0.value_max_turn_end = results[results.length - 1 - R0.results_WIDTH].turn;
+                }
+            }
+        }
+
         // draw contact count chart.
         if (turn > 0 && results.length > 0) {
             for (var i = 0; i < 5; i++) {
                 if (PARAMS.SCREEN_WIDTH * i >= turn) {
-                    RATIO_DRAW_WIDTH = i;
+                    DRAW_RATIO.WIDTH = i;
                     break;
                 }
             }
-
-            //RATIO_DRAW_HEIGHT = 1;
-            RATIO_DRAW_HEIGHT = PARAMS.CHART_HEIGHT / PARAMS.MAX_BALLS;
 
             pre_x = pre_infected = pre_healed = 0;
             context.lineWidth = 1;
 
             for (var i = 0; i < results.length; i++) {
-                var x = Math.ceil(results[i].turn/RATIO_DRAW_WIDTH);
+                var x = Math.ceil(results[i].turn/DRAW_RATIO.WIDTH);
                 var y_infected = PARAMS.SCREEN_HEIGHT + PARAMS.CHART_HEIGHT + PARAMS.RADIUS;
                 var y_healed = PARAMS.SCREEN_HEIGHT + 1;
 
@@ -489,7 +532,7 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
 
                 context.beginPath();
                 context.moveTo(x, y_infected);
-                context.lineTo(x, y_infected - results[i].intected*RATIO_DRAW_HEIGHT);
+                context.lineTo(x, y_infected - results[i].intected*DRAW_RATIO.HEIGHT);
                 context.stroke();
 
                 incremental_x = x - pre_x;
@@ -499,7 +542,7 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
                         // draw previous infected line.
                         context.beginPath();
                         context.moveTo(x1, y_infected);
-                        context.lineTo(x1, y_infected - pre_infected*RATIO_DRAW_HEIGHT);
+                        context.lineTo(x1, y_infected - pre_infected*DRAW_RATIO.HEIGHT);
                         context.stroke();
                     }
                 }
@@ -511,7 +554,7 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
                 if (results[i].healed > 0) {
                     context.beginPath();
                     context.moveTo(x, y_healed)
-                    context.lineTo(x, y_healed + results[i].healed*RATIO_DRAW_HEIGHT);
+                    context.lineTo(x, y_healed + results[i].healed*DRAW_RATIO.HEIGHT);
                     context.stroke();
 
                     incremental_x = x - pre_x;
@@ -520,7 +563,7 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
                             // draw previous infected line.
                             context.beginPath();
                             context.moveTo(x2, y_healed);
-                            context.lineTo(x2, y_healed + pre_healed*RATIO_DRAW_HEIGHT);
+                            context.lineTo(x2, y_healed + pre_healed*DRAW_RATIO.HEIGHT);
                             context.stroke();
                         }
                     }
@@ -538,18 +581,22 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
         context.fillText("contacted = " + contacted_count + "/" + PARAMS.MAX_BALLS, 0, PARAMS.SCREEN_HEIGHT + 60);
         context.fillText("healed = " + healed_count + "/" + PARAMS.MAX_BALLS + "(GREEN)", 0, PARAMS.SCREEN_HEIGHT + 80);
         context.fillText("infected = " + infected_count + "/" + PARAMS.MAX_BALLS + "(RED)", 0, PARAMS.SCREEN_HEIGHT + 100);
+        context.fillText("Basic reproduction number(R0)(max) = " + R0.value_max.toFixed(2) + " (turn ... " + R0.value_max_turn_end + " to " + R0.value_max_turn_begin + ")", 0, PARAMS.SCREEN_HEIGHT + 120);
 
         // All balls are infected.
         if (contacted_count == PARAMS.MAX_BALLS) {
-            context.fillText("infected incremental(BLUE)(ratio ... x" + RATIO_INFECTED_INCREMENTAL + ")", 0, PARAMS.SCREEN_HEIGHT + 120);
-            context.fillText("end ... All balls are infected.", 0, PARAMS.SCREEN_HEIGHT + 160);
+            context.fillText("infected incremental(BLUE)(ratio ... x" + DRAW_RATIO.INFECTED_INCREMENTAL + ")", 0, PARAMS.SCREEN_HEIGHT + 140);
+            context.fillText("end ... All balls are infected.", 0, PARAMS.SCREEN_HEIGHT + 180);
         }
 
         // The infected balls are gone.
         if (infected_count == 0) {
-            context.fillText("infected incremental(BLUE)(ratio ... x" + RATIO_INFECTED_INCREMENTAL + ")", 0, PARAMS.SCREEN_HEIGHT + 120);
-            context.fillText("end ... The infected balls are gone.", 0, PARAMS.SCREEN_HEIGHT + 160);
+            context.fillText("infected incremental(BLUE)(ratio ... x" + DRAW_RATIO.INFECTED_INCREMENTAL + ")", 0, PARAMS.SCREEN_HEIGHT + 140);
+            context.fillText("end ... The infected balls are gone.", 0, PARAMS.SCREEN_HEIGHT + 180);
         }
+
+        // draw scale line.
+        draw_scale_line(context, PARAMS);
 
         // get next position.
         for (var i = 0; i < PARAMS.MAX_BALLS; i++) {
@@ -564,8 +611,7 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
 
             // All balls are infected.
             console.log("End ... All balls are infected. (turn = %d)", turn)
-            calc_end(context, PARAMS, results, RATIO_DRAW_WIDTH, RATIO_INFECTED_INCREMENTAL);
-
+            calc_end(context, PARAMS, results, DRAW_RATIO);
 
             // stop timer call render()
             clearInterval(timer);
@@ -574,12 +620,11 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
             document.querySelector("#button_pause").disabled = true;
             document.querySelector("#button_stop").disabled = true;
 
-
         } else if (infected_count == 0) {
 
             // The infected ball is gone.
             console.log("End ... The infected ball is gone.  (turn = %d)", turn);
-            calc_end(context, PARAMS, results, RATIO_DRAW_WIDTH, RATIO_INFECTED_INCREMENTAL);
+            calc_end(context, PARAMS, results, DRAW_RATIO);
 
             // stop call render()
             clearInterval(timer);
@@ -604,13 +649,37 @@ function print_all_balls(balls) {
     }
 }
 
-function calc_end(context, PARAMS, results, RATIO_DRAW_WIDTH, RATIO_INFECTED_INCREMENTAL) {
+function draw_scale_line(context, PARAMS) {
+    context.strokeStyle = "black";
+    var currentLineDash = context.getLineDash();
+    context.setLineDash([1, 8]);
+
+    for (var x = 100; x < PARAMS.SCREEN_WIDTH; x += 100) {
+        context.beginPath();
+        context.moveTo(x, PARAMS.SCREEN_HEIGHT);
+        context.lineTo(x, PARAMS.SCREEN_HEIGHT + PARAMS.CHART_HEIGHT + PARAMS.RADIUS);
+        context.stroke();
+    }
+
+    for (var y = PARAMS.SCREEN_HEIGHT; y < PARAMS.SCREEN_HEIGHT + PARAMS.CHART_HEIGHT + PARAMS.RADIUS; y += 100) {
+        context.beginPath();
+        context.beginPath();
+        context.moveTo(0, y);
+        context.lineTo(PARAMS.SCREEN_WIDTH, y);
+        context.stroke();
+    }
+
+    context.setLineDash(currentLineDash);
+
+}
+
+function calc_end(context, PARAMS, results, DRAW_RATIO) {
     // draw incremental line.
     pre_x = pre_data = 0;
     context.strokeStyle = "blue";
 
     for (var i = 0; i < results.length; i++) {
-        x = Math.ceil(results[i].turn/RATIO_DRAW_WIDTH);
+        x = Math.ceil(results[i].turn/DRAW_RATIO.WIDTH);
         y = PARAMS.SCREEN_HEIGHT + PARAMS.CHART_HEIGHT + PARAMS.RADIUS
         incremental_data = results[i].contacted - pre_data
         incremental_x = x - pre_x
@@ -618,23 +687,21 @@ function calc_end(context, PARAMS, results, RATIO_DRAW_WIDTH, RATIO_INFECTED_INC
             // draw incremental line.
             context.beginPath();
             context.moveTo(x, y);
-            context.lineTo(x, y - Math.ceil((incremental_data/incremental_x)*RATIO_INFECTED_INCREMENTAL));
+            context.lineTo(x, y - Math.ceil((incremental_data/incremental_x)*DRAW_RATIO.INFECTED_INCREMENTAL));
             context.stroke();
         }
         pre_x = x;
         pre_data = results[i].contacted;
     }
-    
-    context.restore();
-    
-//  print_all_balls(balls);
 
+    draw_scale_line(context, PARAMS);
+
+//  print_all_balls(balls);
 /*
     for (var i = 0; i < results.length; i++) {
         console.log("%d:%d,%d,%d,%d", results[i].turn, results[i].contacted_count, results[i].infected_count, results[i].healed_count, results[i].non_infected);
     }
 */
-    console.log("calc() end.");
 }
 </script>
 
@@ -651,6 +718,7 @@ var bar_width;
 var turns_required_for_heal;
 var ratio_of_balls_stoppted;
 var enable_bar;
+var textarea_reasult;
 
 var vm = new Vue({
     el: '#app',
@@ -701,6 +769,7 @@ var vm = new Vue({
             this.turns_required_for_heal = 100;
             this.ratio_of_balls_stoppted = 0.0;
             this.enable_bar = false;
+            this.textarea_result = "";
         },
         clickStart: function() {
             document.querySelector("#button_start").disabled = true;
