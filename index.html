@@ -278,29 +278,26 @@ function init_ball_position(PARAMS) {
     return new Position(x, y);
 }
 
-function init_screen(context, SCREEN_WIDTH, SCREEN_HEIGHT, CHART_HEIGHT) {
+function init_screen(context, PARAMS) {
     context.lineWidth = 1;
+    context.shadowColor = "white";
 
-    // clear balls screen.
+    // clear balls and chart screen.
     context.fillStyle = "white";
-    context.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    context.fillRect(0, 0, PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT + PARAMS.RADIUS + PARAMS.CHART_HEIGHT);
 
     // draw horizontal and vertical line for balls.
     context.strokeStyle = "black";
-    context.strokeRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-
-    // clear chart screen.
-    context.fillStyle = "white";
-    context.fillRect(0, SCREEN_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT + CHART_HEIGHT);
+    context.strokeRect(0, 0, PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT);
 
     // draw horizontal and vertical line for chart.
     context.strokeStyle = "black";
-    context.strokeRect(0, SCREEN_HEIGHT, SCREEN_WIDTH,  SCREEN_HEIGHT + CHART_HEIGHT);
+    context.strokeRect(0, PARAMS.SCREEN_HEIGHT + PARAMS.RADIUS, PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT + PARAMS.RADIUS + PARAMS.CHART_HEIGHT);
 
     // draw lower line.
     context.beginPath();
-    context.moveTo(0, SCREEN_HEIGHT + CHART_HEIGHT);
-    context.lineTo(SCREEN_WIDTH, SCREEN_HEIGHT + CHART_HEIGHT);
+    context.moveTo(0, PARAMS.SCREEN_HEIGHT + PARAMS.CHART_HEIGHT);
+    context.lineTo(PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT + PARAMS.CHART_HEIGHT);
     context.stroke();
 }
 
@@ -409,7 +406,7 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
             return;
         }
 
-        init_screen(context, PARAMS.SCREEN_WIDTH, PARAMS.SCREEN_HEIGHT, PARAMS.CHART_HEIGHT);
+        init_screen(context, PARAMS);
 
         // heal check.
         if (turn > 0) {
@@ -524,8 +521,8 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
 
             for (var i = 0; i < results.length; i++) {
                 var x = Math.ceil(results[i].turn/DRAW_RATIO.WIDTH);
-                var y_infected = PARAMS.SCREEN_HEIGHT + PARAMS.CHART_HEIGHT + PARAMS.RADIUS;
-                var y_healed = PARAMS.SCREEN_HEIGHT + 1;
+                var y_infected = PARAMS.SCREEN_HEIGHT + PARAMS.RADIUS + PARAMS.CHART_HEIGHT;
+                var y_healed = PARAMS.SCREEN_HEIGHT + PARAMS.RADIUS;
 
                 // draw infected line to lower.
                 context.strokeStyle = "red";
@@ -657,12 +654,11 @@ function draw_scale_line(context, PARAMS) {
     for (var x = 100; x < PARAMS.SCREEN_WIDTH; x += 100) {
         context.beginPath();
         context.moveTo(x, PARAMS.SCREEN_HEIGHT);
-        context.lineTo(x, PARAMS.SCREEN_HEIGHT + PARAMS.CHART_HEIGHT + PARAMS.RADIUS);
+        context.lineTo(x, PARAMS.SCREEN_HEIGHT + PARAMS.RADIUS + PARAMS.CHART_HEIGHT);
         context.stroke();
     }
 
-    for (var y = PARAMS.SCREEN_HEIGHT; y < PARAMS.SCREEN_HEIGHT + PARAMS.CHART_HEIGHT + PARAMS.RADIUS; y += 100) {
-        context.beginPath();
+    for (var y = PARAMS.SCREEN_HEIGHT + PARAMS.RADIUS + 100; y < PARAMS.SCREEN_HEIGHT + PARAMS.RADIUS + PARAMS.CHART_HEIGHT; y += 100) {
         context.beginPath();
         context.moveTo(0, y);
         context.lineTo(PARAMS.SCREEN_WIDTH, y);
@@ -753,7 +749,9 @@ var vm = new Vue({
         canvas.height = this.screen_height + this.max_balls;
 
         var context = canvas.getContext('2d');
-        init_screen(context, this.screen_width, this.screen_height, this.max_balls);
+
+        PARAMS = new Params(null, null, this.radius, this.screen_width, this.screen_height, this.chart_height, null, null, null, null, null, null);
+        init_screen(context, PARAMS);
     },
     methods: {
         clickReset: function() {
