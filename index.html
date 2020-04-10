@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-    <title>CountBallOverlaps.</title>
+    <title>CountBallsOverlap.</title>
     <link href="./js/c3.css" rel="stylesheet">
     <script src="https://d3js.org/d3.v5.js"></script>
     <script src="./js/c3.min.js"></script>
@@ -655,7 +655,7 @@ function draw_scale_line(context, PARAMS) {
 
     for (var x = 100; x < PARAMS.SCREEN_WIDTH; x += 100) {
         context.beginPath();
-        context.moveTo(x, PARAMS.SCREEN_HEIGHT);
+        context.moveTo(x, PARAMS.SCREEN_HEIGHT + PARAMS.RADIUS);
         context.lineTo(x, PARAMS.SCREEN_HEIGHT + PARAMS.RADIUS + PARAMS.CHART_HEIGHT);
         context.stroke();
     }
