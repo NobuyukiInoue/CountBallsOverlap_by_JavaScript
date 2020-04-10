@@ -18,8 +18,8 @@
         <div><tr><td>screen height:</td><td><input v-model="screen_height" type="number"/></td></tr></div>
         <div><tr><td>chart height:</td><td><input v-model="chart_height" type="number"/></td></tr></div>
         <div><tr><td>sleep second(wait)[s]:</td><td><input v-model="sleep_sec" type="number"/>
-            <button type="button" v-on:click="click_sleep_sec_minus">- 0.1</button>
-            <button type="button" v-on:click="click_sleep_sec_plus">+ 0.1</button>
+            <button type="button" v-on:click="click_sleep_sec_minus">- 0.01</button>
+            <button type="button" v-on:click="click_sleep_sec_plus">+ 0.01</button>
         </td></tr></div>
         <div><tr><td>bar_pos_x:</td><td><input v-model="bar_pos_x" type="number"/></td><td>0 ... enable_bar = false.<td></tr></div>
         <div><tr><td>bar_height:</td><td><input v-model="bar_height" type="number"/></td><td>0 ... enable_bar = false.<td></tr></div>
@@ -827,7 +827,7 @@ var vm = new Vue({
         },
         click_sleep_sec_minus: function() {
             if (this.sleep_sec > 0.0) {
-                this.sleep_sec = Math.floor((this.sleep_sec - 0.11)*10)/10.0;
+                this.sleep_sec = Math.floor((this.sleep_sec - 0.01)*100)/100.0;
 
                 if (this.sleep_sec < 0.0) {
                     this.sleep_sec = 0.0;
@@ -835,23 +835,23 @@ var vm = new Vue({
             }
         },
         click_sleep_sec_plus: function() {
-            this.sleep_sec = Math.floor((this.sleep_sec + 0.11)*10)/10.0;
+            this.sleep_sec = Math.floor((this.sleep_sec + 0.011)*100)/100.0;
 
         },
         click_ratio_stopped_minus: function() {
             if (this.ratio_of_balls_stoppted > 0.0) {
-                this.ratio_of_balls_stoppted = Math.floor((this.ratio_of_balls_stoppted - 0.11)*10)/10.0;
+                this.ratio_of_balls_stoppted = Math.floor((this.ratio_of_balls_stoppted - 0.1)*10)/10.0;
 
                 if (this.ratio_of_balls_stoppted < 0.0) {
                     this.ratio_of_balls_stoppted = 0.0;
-                }
-                if (this.ratio_of_balls_stoppted > 1.0) {
-                    this.ratio_of_balls_stoppted = 1.0;
                 }
             }
         },
         click_ratio_stopped_plus: function() {
             this.ratio_of_balls_stoppted = Math.floor((this.ratio_of_balls_stoppted + 0.11)*10)/10.0;
+            if (this.ratio_of_balls_stoppted > 1.0) {
+                    this.ratio_of_balls_stoppted = 1.0;
+                }
         },
     },
 })
