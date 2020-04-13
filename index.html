@@ -420,20 +420,22 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
         var infected_count = 0;
         var healed_count = 0;
         for (var i = 0; i < PARAMS.MAX_BALLS; i++) {
+            var conditions_i = balls[i].contacted && balls[i].healed == false;
 
-            if (balls[i].contacted && balls[i].healed == false)
+            if (conditions_i)
                 infected_count++;
 
             if (balls[i].healed)
                 healed_count++;
-                
+
             for (var j = i + 1; j < PARAMS.MAX_BALLS; j++) {
-                var conditions_i = balls[i].contacted && balls[i].healed == false;
                 var conditions_j = balls[j].contacted && balls[j].healed == false;
+
                 if (conditions_i && conditions_j)
                     continue;
                 if (balls[i].healed || balls[j].healed)
                     continue;
+
                 if (conditions_i) {
                     if (balls[i].isOverlapTo(balls[j].get_position())) {
                         balls[i].infectedTo_Count++;
