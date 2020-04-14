@@ -380,11 +380,10 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
 
 //  print_all_balls(balls);
 
-    var contacted_count = 1;
     var results = new Array();
     var index = 0;
     var turn = 0;
-    var pre_result = new Results(turn, contacted_count, contacted_count, 0, PARAMS.MAX_BALLS - contacted_count);
+    var pre_result = new Results(turn, 1, 1, 0, PARAMS.MAX_BALLS - 1);
     var DRAW_RATIO = new DrawRatio(PARAMS, 3);
     var R0 = new R_Note(5);
 
@@ -417,14 +416,16 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
         }
 
         // contact check.
+        var contacted_count = 0;
         var infected_count = 0;
         var healed_count = 0;
         for (var i = 0; i < PARAMS.MAX_BALLS; i++) {
             var conditions_i = balls[i].contacted && balls[i].healed == false;
 
+            if (balls[i].contacted)
+                contacted_count++;
             if (conditions_i)
                 infected_count++;
-
             if (balls[i].healed)
                 healed_count++;
 
@@ -440,13 +441,11 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
                     if (balls[i].isOverlapTo(balls[j].get_position())) {
                         balls[i].infectedTo_Count++;
                         balls[j].set_contacted(turn, PARAMS.TURNS_REQUIRED_FOR_HEAL, "red");
-                        contacted_count++;
                     }
                 } else if (conditions_j) {
                     if (balls[j].isOverlapTo(balls[i].get_position())) {
                         balls[j].infectedTo_Count++;
                         balls[i].set_contacted(turn, PARAMS.TURNS_REQUIRED_FOR_HEAL, "red");
-                        contacted_count++;
                     }
                 }
             }
