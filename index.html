@@ -489,7 +489,7 @@ function calc(balls_max, radius, screen_width, screen_height, chart_height, slee
             results.push(new Results(turn, contacted_count, infected_count, healed_count, PARAMS.MAX_BALLS - contacted_count));
             console.log("%d:%d,%d,%d,%d", turn, contacted_count, infected_count, healed_count, PARAMS.MAX_BALLS - contacted_count);
 
-            pre_result = new Results(turn, turn, contacted_count, infected_count, healed_count, PARAMS.MAX_BALLS - contacted_count);
+            pre_result = new Results(turn, contacted_count, infected_count, healed_count, PARAMS.MAX_BALLS - contacted_count);
         }
 
         if (results.length > R0.results_WIDTH) {
